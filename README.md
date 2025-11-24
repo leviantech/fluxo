@@ -1,4 +1,31 @@
-# Fluxo — A Lightweight, Delightful Go Web Framework
+<p align="center">
+  <img src="fluxo_img.png" alt="Fluxo Logo" width="100"/>
+</p>
+
+<p align="center">
+  <strong>A Lightweight, Delightful Go Web Framework</strong>
+</p>
+
+<p align="center">
+  <a href="#"><img src="https://img.shields.io/badge/Go-%3E%3D1.25-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
+  <a href="#"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square" alt="License"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Built%20on-Gin-00ADD8?style=flat-square&logo=go" alt="Built on Gin"></a>
+</p>
+
+---
+
+## 📖 Table of Contents
+- [Key Features](#key-features)
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Binding Sources](#binding-sources)
+- [Content-Type Automatic Detection](#content-type-automatic-detection)
+- [Validation](#validation)
+- [Gin Integration & Middleware](#gin-integration--middleware)
+- [Automatic Swagger/OpenAPI](#automatic-swaggeropenapi)
+- [Performance & Ecosystem](#performance--ecosystem)
+- [Why Fluxo?](#why-fluxo)
+- [License](#license)
 
 Fluxo focuses on developer productivity: type‑safe generic handlers, automatic binding (JSON, query, path, form, multipart), built‑in validation, and automatic Swagger/OpenAPI—without boilerplate. Built on top of **gin** for maximum performance and ecosystem compatibility.
 
