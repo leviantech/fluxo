@@ -19,7 +19,7 @@
 - [Install](#install)
 - [Quick Start](#quick-start)
 - [Binding Sources](#binding-sources)
-- [Content-Type Automatic Detection](#content-type-automatic-detection)
+- [Content-Type Automatic Detection](#contenttype-automatic-detection)
 - [Validation](#validation)
 - [Gin Integration & Middleware](#gin-integration--middleware)
 - [Automatic Swagger/OpenAPI](#automatic-swaggeropenapi)

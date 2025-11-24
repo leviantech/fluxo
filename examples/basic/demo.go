@@ -84,7 +84,8 @@ func main() {
 	app := fluxo.New()
 
 	// Enable swagger documentation first (before defining routes)
-	app.WithSwagger("Fluxo API Demo", "1.0.0")
+	app.WithSwagger("Fluxo API Demo", "1.0.0",
+		fluxo.WithSwaggerPageTitle("A demo API for Fluxo Framework"))
 
 	// Add some gin middleware
 	app.Use(gin.Logger())

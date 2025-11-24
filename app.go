@@ -126,9 +126,9 @@ func (a *App) captureHandlerInfo(method, path string, handler gin.HandlerFunc) {
 }
 
 // WithSwagger enables swagger documentation generation and serves it at /docs
-func (a *App) WithSwagger(title, version string) *App {
+func (a *App) WithSwagger(title, version string, opts ...SwaggerOption) *App {
 	a.enableSwagger = true
-	a.swagger = NewSwaggerGenerator(title, version)
+	a.swagger = NewSwaggerGenerator(title, version, opts...)
 	a.EnableSwaggerUI("/docs")
 	return a
 }
@@ -150,6 +150,6 @@ func (a *App) EnableSwaggerUI(path string) {
 
 	// Serve the Swagger UI
 	if path != "/openapi.json" {
-		a.GET(path, serveSwaggerUI)
+		a.GET(path, a.swagger.UIHandler())
 	}
 }

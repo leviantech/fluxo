@@ -89,24 +89,47 @@ type Parameter struct {
 }
 
 type SwaggerGenerator struct {
-	spec OpenAPISpec
+    spec      OpenAPISpec
+    pageTitle string
 }
 
-func NewSwaggerGenerator(title, version string) *SwaggerGenerator {
-	return &SwaggerGenerator{
-		spec: OpenAPISpec{
-			OpenAPI: "3.0.0",
-			Info: OpenAPIInfo{
-				Title:       title,
-				Version:     version,
-				Description: "Auto-generated API documentation",
-			},
-			Paths: make(map[string]PathItem),
-			Components: Components{
-				Schemas: make(map[string]Schema),
-			},
-		},
-	}
+type SwaggerOption func(*SwaggerGenerator)
+
+func WithSwaggerDescription(desc string) SwaggerOption {
+    return func(sg *SwaggerGenerator) {
+        sg.spec.Info.Description = desc
+    }
+}
+
+func WithSwaggerPageTitle(title string) SwaggerOption {
+    return func(sg *SwaggerGenerator) {
+        sg.pageTitle = title
+    }
+}
+
+func NewSwaggerGenerator(title, version string, opts ...SwaggerOption) *SwaggerGenerator {
+    sg := &SwaggerGenerator{
+        spec: OpenAPISpec{
+            OpenAPI: "3.0.0",
+            Info: OpenAPIInfo{
+                Title:       title,
+                Version:     version,
+                Description: "Auto-generated API documentation",
+            },
+            Paths: make(map[string]PathItem),
+            Components: Components{
+                Schemas: make(map[string]Schema),
+            },
+        },
+        pageTitle: title,
+    }
+
+    for _, opt := range opts {
+        if opt != nil {
+            opt(sg)
+        }
+    }
+    return sg
 }
 
 // Generate returns the OpenAPI spec as a map (for JSON serialization)
@@ -443,9 +466,15 @@ func (sg *SwaggerGenerator) GetJSON() ([]byte, error) {
 }
 
 // serveSwaggerUI serves the Swagger UI using gin
-func serveSwaggerUI(ctx *gin.Context) {
-	ctx.Header("Content-Type", "text/html")
-	ctx.String(http.StatusOK, fmt.Sprintf(swaggerUITemplate, "/openapi.json"))
+func (sg *SwaggerGenerator) UIHandler() gin.HandlerFunc {
+    return func(ctx *gin.Context) {
+        ctx.Header("Content-Type", "text/html")
+        title := sg.pageTitle
+        if title == "" {
+            title = sg.spec.Info.Title
+        }
+        ctx.String(http.StatusOK, fmt.Sprintf(swaggerUITemplate, title, "/openapi.json"))
+    }
 }
 
 const swaggerUITemplate = `
@@ -453,7 +482,7 @@ const swaggerUITemplate = `
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Fluxo API Documentation</title>
+    <title>%s</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css">
     <style>
         html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
