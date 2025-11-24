@@ -96,7 +96,64 @@ func Handle[Req any, Res any](fn func(ctx *gin.Context, req Req) (Res, error)) g
 		ctx.JSON(http.StatusOK, res)
 	}
 
-	// Register with appropriate content type based on common usage
-	registerHandlerTypes(handler, reqType, resType, "application/json")
+	// Determine content types based on struct tags
+	contentTypes := detectContentTypes(reqType)
+	
+	// Register handler types for each detected content type
+	for _, ct := range contentTypes {
+		registerHandlerTypes(handler, reqType, resType, ct)
+	}
 	return handler
+}
+
+// detectContentTypes analyzes struct tags to determine appropriate content types
+func detectContentTypes(reqType reflect.Type) []string {
+	if reqType == nil {
+		return []string{"application/json"}
+	}
+	
+	var hasJSON, hasForm, hasFile bool
+	
+	// Analyze struct fields
+	for i := 0; i < reqType.NumField(); i++ {
+		field := reqType.Field(i)
+		
+		// Check for json tags
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
+			hasJSON = true
+		}
+		
+		// Check for form tags
+		if formTag := field.Tag.Get("form"); formTag != "" && formTag != "-" {
+			hasForm = true
+		}
+		
+		// Check for file upload fields
+		if field.Type.String() == "*multipart.FileHeader" || 
+		   field.Type.String() == "[]*multipart.FileHeader" {
+			hasFile = true
+		}
+	}
+	
+	// Determine content types based on analysis
+	var contentTypes []string
+	
+	if hasFile {
+		// If there are file fields, must use multipart
+		contentTypes = append(contentTypes, "multipart/form-data")
+	} else if hasForm {
+		// If there are form tags, support both form and JSON
+		contentTypes = append(contentTypes, "application/x-www-form-urlencoded")
+		if hasJSON {
+			contentTypes = append(contentTypes, "application/json")
+		}
+	} else if hasJSON {
+		// If only JSON tags, use JSON
+		contentTypes = append(contentTypes, "application/json")
+	} else {
+		// Default to JSON
+		contentTypes = append(contentTypes, "application/json")
+	}
+	
+	return contentTypes
 }

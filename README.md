@@ -52,15 +52,16 @@ func main() {
 
 ## Binding Sources
 - JSON body: `json:"..."`
-- Query string: `query:"..."`
+- Query string: `form:"..."` (gin convention)
 - Path params: `uri:"..."` (gin native)
 - Form & Multipart: `form:"..."`
 
 Example with query + path:
 ```go
-type ListReq struct {
-    Page int    `query:"page"`
-    ID   string `uri:"id"`      // gin native path parameter
+type SearchRequest struct {
+    Query string `form:"q" validate:"required"`     // Query parameter
+    Limit int    `form:"limit" validate:"max=100"`  // Query parameter  
+    ID    string `uri:"id" validate:"required"`     // Path parameter
 }
 ```
 
@@ -128,8 +129,36 @@ func MyHandler(ctx *gin.Context, req MyRequest) (MyResponse, error) {
 - Enable with `app.WithSwagger("Title", "Version")`
 - UI: `http://localhost:8080/docs`
 - Spec: `http://localhost:8080/openapi.json`
-- Fluxo detects `Req`/`Res` types and chooses proper `contentType` (JSON/Form/Multipart) automatically.
-- Full OpenAPI 3.0 specification with validation rules
+- **Smart Content-Type Detection**: Automatically detects JSON, Form, and Multipart content types
+- **Proper Parameter Documentation**: GET requests show query/path parameters, POST requests show request bodies
+- **Full Validation Rules**: All `validate:"..."` tags are documented in the schema
+- **Complete OpenAPI 3.0 Specification**: Generated automatically from your Go structs
+
+### Swagger Parameter Examples
+
+**GET with Query Parameters:**
+```go
+type SearchRequest struct {
+    Query string `form:"q" validate:"required"`     // Shows as query param
+    Limit int    `form:"limit" validate:"max=100"` // Shows as optional query param
+    Page  int    `form:"page"`                     // Shows as optional query param
+}
+```
+
+**GET with Path Parameters:**
+```go
+type GetUserRequest struct {
+    ID string `uri:"id" validate:"required"` // Shows as required path parameter
+}
+```
+
+**POST with Form Data:**
+```go
+type LoginRequest struct {
+    Username string `form:"username" validate:"required"` // Documented in requestBody
+    Password string `form:"password" validate:"required"` // Documented in requestBody
+}
+```
 
 ## Performance & Ecosystem
 Built on **gin** - one of the fastest Go web frameworks:
