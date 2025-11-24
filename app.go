@@ -2,7 +2,9 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -136,7 +138,7 @@ func (a *App) EnableSwaggerUI(path string) {
 	if !a.enableSwagger {
 		panic("Swagger is not enabled. Call WithSwagger() first.")
 	}
-	
+
 	// Serve the OpenAPI JSON spec (only if not already registered)
 	if _, exists := a.handlers["GET:/openapi.json"]; !exists {
 		a.GET("/openapi.json", func(c *gin.Context) {
@@ -145,7 +147,7 @@ func (a *App) EnableSwaggerUI(path string) {
 			c.JSON(http.StatusOK, spec)
 		})
 	}
-	
+
 	// Serve the Swagger UI
 	if path != "/openapi.json" {
 		a.GET(path, serveSwaggerUI)
