@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>A Lightweight, Delightful Go Web Framework</strong>
+  <strong>A fast, type-safe Go REST API framework inspired by FastAPI (Python)</strong>
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 - [Why Fluxo?](#why-fluxo)
 - [License](#license)
 
-Fluxo focuses on developer productivity: type‑safe generic handlers, automatic binding (JSON, query, path, form, multipart), built‑in validation, and automatic Swagger/OpenAPI—without boilerplate. Built on top of **gin** for maximum performance and ecosystem compatibility.
+Fluxo focuses on developer productivity: type‑safe generic handlers, automatic binding (JSON, query, path, form, multipart), built‑in validation, and automatic Swagger/OpenAPI—without boilerplate. Built on top of **gin** for maximum performance and ecosystem compatibility. Inspired by FastAPI (Python) for fast development, type‑first design, and automatic interactive docs.
 
 ## Key Features
 - **Type‑safe generic handlers**: `Handle` (automatic content-type detection)

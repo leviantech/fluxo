@@ -2,7 +2,9 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-//     http://www.apache.org/licenses/LICENSE-2.0
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,6 +27,8 @@ type typesPair struct {
 	ct  string
 }
 
+type HandlerFunc[Req any, Res any] func(ctx *gin.Context, req Req) (Res, error)
+
 var handlerTypeRegistry sync.Map
 
 func registerHandlerTypes(h gin.HandlerFunc, req, res reflect.Type, ct string) {
@@ -40,7 +44,7 @@ func lookupHandlerTypes(h gin.HandlerFunc) (reflect.Type, reflect.Type, string, 
 }
 
 // Handle creates a type-safe handler using gin's native functionality with automatic content-type detection
-func Handle[Req any, Res any](fn func(ctx *gin.Context, req Req) (Res, error)) gin.HandlerFunc {
+func Handle[Req any, Res any](fn HandlerFunc[Req, Res]) gin.HandlerFunc {
 	var reqZero Req
 	var resZero Res
 	reqType := reflect.TypeOf(reqZero)
@@ -52,7 +56,7 @@ func Handle[Req any, Res any](fn func(ctx *gin.Context, req Req) (Res, error)) g
 		// Use gin's native binding based on content type
 		if ctx.Request.Method != http.MethodGet && ctx.Request.Method != http.MethodHead {
 			contentType := ctx.ContentType()
-			
+
 			switch contentType {
 			case "application/x-www-form-urlencoded":
 				if err := ctx.ShouldBind(&req); err != nil {
@@ -108,7 +112,7 @@ func Handle[Req any, Res any](fn func(ctx *gin.Context, req Req) (Res, error)) g
 
 	// Determine content types based on struct tags
 	contentTypes := detectContentTypes(reqType)
-	
+
 	// Register handler types for each detected content type
 	for _, ct := range contentTypes {
 		registerHandlerTypes(handler, reqType, resType, ct)
@@ -121,33 +125,33 @@ func detectContentTypes(reqType reflect.Type) []string {
 	if reqType == nil {
 		return []string{"application/json"}
 	}
-	
+
 	var hasJSON, hasForm, hasFile bool
-	
+
 	// Analyze struct fields
 	for i := 0; i < reqType.NumField(); i++ {
 		field := reqType.Field(i)
-		
+
 		// Check for json tags
 		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
 			hasJSON = true
 		}
-		
+
 		// Check for form tags
 		if formTag := field.Tag.Get("form"); formTag != "" && formTag != "-" {
 			hasForm = true
 		}
-		
+
 		// Check for file upload fields
-		if field.Type.String() == "*multipart.FileHeader" || 
-		   field.Type.String() == "[]*multipart.FileHeader" {
+		if field.Type.String() == "*multipart.FileHeader" ||
+			field.Type.String() == "[]*multipart.FileHeader" {
 			hasFile = true
 		}
 	}
-	
+
 	// Determine content types based on analysis
 	var contentTypes []string
-	
+
 	if hasFile {
 		// If there are file fields, must use multipart
 		contentTypes = append(contentTypes, "multipart/form-data")
@@ -164,6 +168,6 @@ func detectContentTypes(reqType reflect.Type) []string {
 		// Default to JSON
 		contentTypes = append(contentTypes, "application/json")
 	}
-	
+
 	return contentTypes
 }
