@@ -3,48 +3,41 @@
 package fluxo
 
 import (
-	"context"
-	"encoding/json"
-	"net/http"
+	"fmt"
+	"reflect"
 
 	"github.com/gin-gonic/gin"
 )
 
-type Ctx struct {
-	Context  context.Context
-	Response http.ResponseWriter
-	Request  *http.Request
+const (
+	authenticatedUserKey = "authenticated_user"
+)
+
+type Context struct {
+	*gin.Context
 }
 
-func NewCtx(w http.ResponseWriter, r *http.Request) Ctx {
-	return Ctx{
-		Context:  r.Context(),
-		Response: w,
-		Request:  r,
+func (c *Context) SetAuthenticatedUser(user any) {
+	c.Set(authenticatedUserKey, user)
+}
+
+func (c *Context) GetAuthenticatedUser(target any) error {
+	v, exists := c.Get(authenticatedUserKey)
+	if !exists {
+		return fmt.Errorf("authenticated user not found")
 	}
-}
 
-func (c *Ctx) PathParam(key string) string {
-	ginCtx, ok := c.Request.Context().Value("gin").(*gin.Context)
-	if ok {
-		return ginCtx.Param(key)
+	targetVal := reflect.ValueOf(target)
+	if targetVal.Kind() != reflect.Pointer {
+		panic("target must be a pointer")
 	}
-	return ""
-}
 
-func (c *Ctx) QueryParam(key string) string {
-	return c.Request.URL.Query().Get(key)
-}
+	sourceVal := reflect.ValueOf(v)
 
-func (c *Ctx) JSON(status int, data interface{}) error {
-	c.Response.Header().Set("Content-Type", "application/json")
-	c.Response.WriteHeader(status)
-	return json.NewEncoder(c.Response).Encode(data)
-}
+	if sourceVal.Type().AssignableTo(targetVal.Elem().Type()) {
+		targetVal.Elem().Set(sourceVal)
+		return nil
+	}
 
-func (c *Ctx) Error(status int, message string) error {
-	return c.JSON(status, HTTPError{
-		Status:  status,
-		Message: message,
-	})
+	return fmt.Errorf("authenticated user type mismatch")
 }

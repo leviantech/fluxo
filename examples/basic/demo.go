@@ -143,7 +143,7 @@ func main() {
 }
 
 // Handlers
-func createUserHandler(ctx *gin.Context, req CreateUserRequest) (CreateUserResponse, error) {
+func createUserHandler(ctx *fluxo.Context, req CreateUserRequest) (CreateUserResponse, error) {
 	fmt.Printf("Creating user: %+v\n", req)
 
 	return CreateUserResponse{
@@ -156,7 +156,7 @@ func createUserHandler(ctx *gin.Context, req CreateUserRequest) (CreateUserRespo
 	}, nil
 }
 
-func getUserHandler(ctx *gin.Context, req GetUserRequest) (GetUserResponse, error) {
+func getUserHandler(ctx *fluxo.Context, req GetUserRequest) (GetUserResponse, error) {
 	fmt.Printf("Getting user with ID: %s\n", req.ID)
 
 	return GetUserResponse{
@@ -166,7 +166,7 @@ func getUserHandler(ctx *gin.Context, req GetUserRequest) (GetUserResponse, erro
 	}, nil
 }
 
-func searchHandler(ctx *gin.Context, req SearchRequest) (SearchResponse, error) {
+func searchHandler(ctx *fluxo.Context, req SearchRequest) (SearchResponse, error) {
 	fmt.Printf("Searching for: %s (limit: %d, page: %d)\n", req.Query, req.Limit, req.Page)
 
 	if req.Limit == 0 {
@@ -186,7 +186,7 @@ func searchHandler(ctx *gin.Context, req SearchRequest) (SearchResponse, error) 
 	}, nil
 }
 
-func loginHandler(ctx *gin.Context, req LoginFormRequest) (LoginFormResponse, error) {
+func loginHandler(ctx *fluxo.Context, req LoginFormRequest) (LoginFormResponse, error) {
 	fmt.Printf("Login attempt for user: %s\n", req.Username)
 
 	if req.Username == "admin" && req.Password == "secret" {
@@ -204,7 +204,7 @@ func loginHandler(ctx *gin.Context, req LoginFormRequest) (LoginFormResponse, er
 	}, nil
 }
 
-func uploadHandler(ctx *gin.Context, req UploadRequest) (UploadResponse, error) {
+func uploadHandler(ctx *fluxo.Context, req UploadRequest) (UploadResponse, error) {
 	fmt.Printf("Uploading file: %s (title: %s)\n", req.File.Filename, req.Title)
 
 	return UploadResponse{
@@ -215,7 +215,7 @@ func uploadHandler(ctx *gin.Context, req UploadRequest) (UploadResponse, error) 
 	}, nil
 }
 
-func adminDashboardHandler(ctx *gin.Context, req interface{}) (gin.H, error) {
+func adminDashboardHandler(ctx *fluxo.Context, req interface{}) (gin.H, error) {
 	user := ctx.MustGet(gin.AuthUserKey).(string)
 	fmt.Printf("Admin dashboard accessed by: %s\n", user)
 

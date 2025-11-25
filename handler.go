@@ -17,7 +17,7 @@ type typesPair struct {
 	ct  string
 }
 
-type HandlerFunc[Req any, Res any] func(ctx *gin.Context, req Req) (Res, error)
+type HandlerFunc[Req any, Res any] func(ctx *Context, req Req) (Res, error)
 
 var handlerTypeRegistry sync.Map
 
@@ -86,7 +86,7 @@ func Handle[Req any, Res any](fn HandlerFunc[Req, Res]) gin.HandlerFunc {
 		}
 
 		// Call the handler function
-		res, err := fn(ctx, req)
+		res, err := fn(&Context{Context: ctx}, req)
 		if err != nil {
 			if httpErr, ok := err.(HTTPError); ok {
 				ctx.JSON(httpErr.Status, httpErr)
