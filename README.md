@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="#"><img src="https://img.shields.io/badge/Go-%3E%3D1.25-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
-  <a href="#"><img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square" alt="License"></a>
+  <a href="#"><img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License"></a>
   <a href="#"><img src="https://img.shields.io/badge/Built%20on-Gin-00ADD8?style=flat-square&logo=go" alt="Built on Gin"></a>
 </p>
 
@@ -204,4 +204,4 @@ Built on **gin** - one of the fastest Go web frameworks:
 - **Production-ready** with built-in error handling and logging
 
 ## License
-Apache 2.0 — see `LICENSE`.
+MIT — see `LICENSE`.
