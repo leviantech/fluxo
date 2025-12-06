@@ -80,7 +80,7 @@ func Handle[Req any, Res any](fn HandlerFunc[Req, Res]) gin.HandlerFunc {
 		}
 
 		// Validate the request
-		if err := validateStruct(&req); err != nil {
+		if err := validateStruct(ctx, &req); err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Validation failed: %v", err)})
 			return
 		}

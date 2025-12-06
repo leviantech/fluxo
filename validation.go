@@ -1,38 +1,52 @@
-// Copyright 2025 M Reyhan Fahlevi
+// Copyright 2025 M Reyhan
 // Licensed under the MIT License. See LICENSE for details.
+
 package fluxo
 
 import (
 	"fmt"
 	"strings"
+	"sync"
 
+	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
 
-var validate *validator.Validate
+var (
+	validate            = validator.New()
+	translationRegistry = map[string]map[string]string{}
+	mu                  sync.RWMutex
+)
 
-func init() {
-	validate = validator.New()
-}
+// RegisterTranslation registers a translated message for a validation tag.
+// Example: fluxo.RegisterTranslation("jp", "required", "%s は必須です")
+func RegisterTranslation(lang, tag, message string) {
+	mu.Lock()
+	defer mu.Unlock()
 
-func validateStruct(s interface{}) error {
-	if err := validate.Struct(s); err != nil {
-		validationErrors, ok := err.(validator.ValidationErrors)
-		if !ok {
-			return fmt.Errorf("validation failed: %v", err)
-		}
-
-		var errorMessages []string
-		for _, e := range validationErrors {
-			errorMessages = append(errorMessages, formatValidationError(e))
-		}
-
-		return fmt.Errorf("validation failed: %s", strings.Join(errorMessages, "; "))
+	if _, ok := translationRegistry[lang]; !ok {
+		translationRegistry[lang] = map[string]string{}
 	}
-	return nil
+
+	translationRegistry[lang][tag] = message
 }
 
-func formatValidationError(e validator.FieldError) string {
+// translate returns a translated message if found.
+func translate(lang, tag string, args ...any) (string, bool) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if tbl, ok := translationRegistry[lang]; ok {
+		if msg, ok := tbl[tag]; ok {
+			return fmt.Sprintf(msg, args...), true
+		}
+	}
+
+	return "", false
+}
+
+// defaultValidationMessage replicates your original English fallback text.
+func defaultValidationMessage(e validator.FieldError) string {
 	field := e.Field()
 	tag := e.Tag()
 	param := e.Param()
@@ -57,4 +71,47 @@ func formatValidationError(e validator.FieldError) string {
 	default:
 		return fmt.Sprintf("%s failed validation for %s", field, tag)
 	}
+}
+
+// formatValidationError uses translation if available, fallback otherwise.
+func formatValidationError(e validator.FieldError, lang string) string {
+	field := e.Field()
+	tag := e.Tag()
+	param := e.Param()
+
+	if param != "" {
+		if msg, ok := translate(lang, tag, field, param); ok {
+			return msg
+		}
+	} else {
+		if msg, ok := translate(lang, tag, field); ok {
+			return msg
+		}
+	}
+
+	return defaultValidationMessage(e)
+}
+
+// validateStruct validates a struct using ctx to determine language.
+func validateStruct(ctx *gin.Context, s interface{}) error {
+	lang := ctx.GetHeader("Accept-Language")
+	if lang == "" {
+		lang = "en"
+	}
+
+	if err := validate.Struct(s); err != nil {
+		validationErrors, ok := err.(validator.ValidationErrors)
+		if !ok {
+			return fmt.Errorf("validation failed: %v", err)
+		}
+
+		var messages []string
+		for _, e := range validationErrors {
+			messages = append(messages, formatValidationError(e, lang))
+		}
+
+		return fmt.Errorf("validation failed: %s", strings.Join(messages, "; "))
+	}
+
+	return nil
 }
