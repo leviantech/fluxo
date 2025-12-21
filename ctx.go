@@ -41,3 +41,11 @@ func (c *Context) GetAuthenticatedUser(target any) error {
 
 	return fmt.Errorf("authenticated user type mismatch")
 }
+
+func (c *Context) Lang() string {
+	lang := c.GetHeader("Accept-Language")
+	if lang == "" {
+		return "en"
+	}
+	return lang
+}

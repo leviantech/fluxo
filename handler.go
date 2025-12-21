@@ -48,12 +48,12 @@ func Handle[Req any, Res any](fn HandlerFunc[Req, Res]) gin.HandlerFunc {
 			contentType := ctx.ContentType()
 
 			switch contentType {
-			case "application/x-www-form-urlencoded":
+			case gin.MIMEPOSTForm:
 				if err := ctx.ShouldBind(&req); err != nil {
 					ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Form binding failed: %v", err)})
 					return
 				}
-			case "multipart/form-data":
+			case gin.MIMEMultipartPOSTForm:
 				if err := ctx.ShouldBind(&req); err != nil {
 					ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Multipart binding failed: %v", err)})
 					return
@@ -80,7 +80,7 @@ func Handle[Req any, Res any](fn HandlerFunc[Req, Res]) gin.HandlerFunc {
 		}
 
 		// Validate the request
-		if err := validateStruct(&req); err != nil {
+		if err := validateStruct(ctx, &req); err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Validation failed: %v", err)})
 			return
 		}
