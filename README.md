@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://codecov.io/github/leviantech/fluxo" ><img src="https://codecov.io/github/leviantech/fluxo/branch/main/graph/badge.svg?token=XTZCAHII2A"/></a>
   <a href="#"><img src="https://img.shields.io/badge/Go-%3E%3D1.25-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
   <a href="#"><img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License"></a>
   <a href="#"><img src="https://img.shields.io/badge/Built%20on-Gin-00ADD8?style=flat-square&logo=go" alt="Built on Gin"></a>

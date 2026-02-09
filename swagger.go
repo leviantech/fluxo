@@ -394,6 +394,9 @@ func (sg *SwaggerGenerator) AddEndpoint(method, path string, requestTypes []refl
 }
 
 func (sg *SwaggerGenerator) generateSchema(t reflect.Type) Schema {
+	if t == nil {
+		return Schema{Type: "object"}
+	}
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}

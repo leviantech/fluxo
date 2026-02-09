@@ -54,3 +54,35 @@ func TestAuthenticateUser(t *testing.T) {
 
 	assertPanic(t, func() { ctx.GetAuthenticatedUser(invalidType) }, "target must be a pointer")
 }
+
+func TestContext_Lang(t *testing.T) {
+	w := httptest.NewRecorder()
+	ginCtx, _ := gin.CreateTestContext(w)
+	ctx := Context{ginCtx}
+
+	// Default
+	ginCtx.Request = httptest.NewRequest("GET", "/", nil)
+	if ctx.Lang() != "en" {
+		t.Fatalf("expected en, got %s", ctx.Lang())
+	}
+
+	// With header
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Accept-Language", "fr")
+	ginCtx.Request = req
+	if ctx.Lang() != "fr" {
+		t.Fatalf("expected fr, got %s", ctx.Lang())
+	}
+}
+
+func TestContext_GetAuthenticatedUser_NotFound(t *testing.T) {
+	w := httptest.NewRecorder()
+	ginCtx, _ := gin.CreateTestContext(w)
+	ctx := Context{ginCtx}
+
+	var u user
+	err := ctx.GetAuthenticatedUser(&u)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}

@@ -80,3 +80,129 @@ func TestSwagger_NestedSlice(t *testing.T) {
 		t.Errorf("nested slice items have no properties, probably just generic object")
 	}
 }
+
+func TestSwagger_GetSpec_GetJSON(t *testing.T) {
+	sg := NewSwaggerGenerator("Test", "1.0")
+	spec := sg.GetSpec()
+	if spec.Info.Title != "Test" {
+		t.Fatalf("expected Test, got %s", spec.Info.Title)
+	}
+
+	jsonBytes, err := sg.GetJSON()
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	if len(jsonBytes) == 0 {
+		t.Fatalf("expected non-empty JSON")
+	}
+}
+
+func TestSwagger_SchemaTypes(t *testing.T) {
+	sg := NewSwaggerGenerator("Test", "1.0")
+	type AllTypes struct {
+		Int     int     `json:"int"`
+		Float   float64 `json:"float"`
+		Bool    bool    `json:"bool"`
+		Pointer *string `json:"pointer"`
+	}
+
+	schema := sg.generateSchema(reflect.TypeOf(AllTypes{}))
+	if schema.Properties["int"].Type != "integer" {
+		t.Errorf("expected integer, got %s", schema.Properties["int"].Type)
+	}
+	if schema.Properties["float"].Type != "number" {
+		t.Errorf("expected number, got %s", schema.Properties["float"].Type)
+	}
+	if schema.Properties["bool"].Type != "boolean" {
+		t.Errorf("expected boolean, got %s", schema.Properties["bool"].Type)
+	}
+	if schema.Properties["pointer"].Type != "string" {
+		t.Errorf("expected string for pointer, got %s", schema.Properties["pointer"].Type)
+	}
+}
+
+func TestSwagger_UI_Handler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	t.Run("With_PageTitle", func(t *testing.T) {
+		app := New().WithSwagger("Test", "1.0.0", WithSwaggerPageTitle("Custom Title"))
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/docs", nil)
+		app.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("Without_PageTitle", func(t *testing.T) {
+		sg := NewSwaggerGenerator("Test", "1.0.0")
+		// Manually trigger UIHandler
+		handler := sg.UIHandler()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		handler(c)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+	})
+}
+
+func TestSwagger_Internal_Helpers(t *testing.T) {
+	t.Run("contains", func(t *testing.T) {
+		if !contains([]string{"a", "b"}, "a") {
+			t.Error("expected true")
+		}
+		if contains([]string{"a", "b"}, "c") {
+			t.Error("expected false")
+		}
+	})
+}
+
+func TestSwagger_Schema_EdgeCases(t *testing.T) {
+	sg := NewSwaggerGenerator("Test", "1.0.0")
+
+	t.Run("Recursive_Schema", func(t *testing.T) {
+		type Node struct {
+			Name string `json:"name"`
+			Next *Node  `json:"next"`
+		}
+		schema := sg.generateSchema(reflect.TypeOf(Node{}))
+		if schema.Type != "object" {
+			t.Errorf("expected object, got %s", schema.Type)
+		}
+	})
+
+	t.Run("Primitive_Types", func(t *testing.T) {
+		types := []reflect.Type{
+			reflect.TypeOf(""),
+			reflect.TypeOf(1),
+			reflect.TypeOf(1.1),
+			reflect.TypeOf(true),
+		}
+		for _, rt := range types {
+			schema := sg.generateSchema(rt)
+			if schema.Type == "" {
+				t.Errorf("expected type for %v", rt)
+			}
+		}
+	})
+
+	t.Run("Comprehensive_Struct", func(t *testing.T) {
+		type ComplexReq struct {
+			ID      int    `uri:"id" validate:"required"`
+			Search  string `form:"q"`
+			Token   string `header:"X-Token" validate:"required"`
+			Data    struct {
+				Value string `json:"value"`
+			} `json:"data"`
+			Tags    []string `json:"tags"`
+			Active  bool     `json:"active"`
+			Price   float64  `json:"price"`
+		}
+		sg.AddEndpoint("POST", "/test/:id", []reflect.Type{reflect.TypeOf(ComplexReq{})}, nil, "application/json")
+		spec := sg.GetSpec()
+		if _, ok := spec.Paths["/test/:id"]; !ok {
+			t.Error("expected /test/:id in spec")
+		}
+	})
+}

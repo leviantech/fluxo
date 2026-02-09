@@ -3,6 +3,7 @@ package fluxo
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -185,6 +186,113 @@ func TestMiddleware_HeaderBinding(t *testing.T) {
 		app.ServeHTTP(w, r)
 		if w.Code != http.StatusOK {
 			t.Errorf("expected 200, got %d. Body: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestMiddleware_BindingErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	
+	t.Run("JSON_Error", func(t *testing.T) {
+		app := New()
+		type Req struct {
+			Name string `json:"name" binding:"required"`
+		}
+		mw := Middleware(func(ctx *Context, req Req) error {
+			return nil
+		})
+		app.POST("/test", mw, func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/test", bytes.NewBufferString("invalid json"))
+		r.Header.Set("Content-Type", "application/json")
+		app.ServeHTTP(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Form_Error", func(t *testing.T) {
+		app := New()
+		type Req struct {
+			Age int `form:"age" binding:"required"`
+		}
+		mw := Middleware(func(ctx *Context, req Req) error {
+			return nil
+		})
+		app.POST("/test", mw, func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/test", bytes.NewBufferString("age=abc"))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		app.ServeHTTP(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Middleware_Internal_Error", func(t *testing.T) {
+		app := New()
+		mw := Middleware(func(ctx *Context, req struct{}) error {
+			return errors.New("something went wrong")
+		})
+		app.GET("/test", mw, func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/test", nil)
+		app.ServeHTTP(w, r)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+	})
+	
+	t.Run("Header_Error", func(t *testing.T) {
+		app := New()
+		type Req struct {
+			ID int `header:"X-ID" binding:"required"`
+		}
+		mw := Middleware(func(ctx *Context, req Req) error {
+			return nil
+		})
+		app.GET("/test", mw)
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/test", nil)
+		r.Header.Set("X-ID", "abc") // Not an int
+		app.ServeHTTP(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Multipart_Error", func(t *testing.T) {
+		app := New()
+		type Req struct {
+			File interface{} `form:"file" binding:"required"`
+		}
+		mw := Middleware(func(ctx *Context, req Req) error {
+			return nil
+		})
+		app.POST("/test", mw)
+
+		w := httptest.NewRecorder()
+		// Missing boundary
+		r := httptest.NewRequest("POST", "/test", bytes.NewBufferString("not multipart"))
+		r.Header.Set("Content-Type", "multipart/form-data")
+		app.ServeHTTP(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
 		}
 	})
 }
