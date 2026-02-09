@@ -54,3 +54,29 @@ func TestSwagger_ContentTypes_Parameters(t *testing.T) {
     params := sg.generateParameters(reflect.TypeOf(P{}), "/items/:id")
     if len(params) == 0 { t.Fatalf("no params") }
 }
+
+func TestSwagger_NestedSlice(t *testing.T) {
+	sg := NewSwaggerGenerator("t", "v")
+	type Item struct {
+		Name string `json:"name"`
+	}
+	type Res struct {
+		Items []Item `json:"items"`
+	}
+	
+	schema := sg.generateSchema(reflect.TypeOf(Res{}))
+	itemsSchema := schema.Properties["items"]
+	if itemsSchema.Type != "array" {
+		t.Fatalf("expected array, got %s", itemsSchema.Type)
+	}
+	
+	// Check if items schema has properties (it should, but current implementation might just say "object")
+	if itemsSchema.Items == nil {
+		t.Fatalf("expected items schema to be non-nil")
+	}
+	
+	// This is where it's expected to fail if the bug exists
+	if itemsSchema.Items.Type == "object" && len(itemsSchema.Items.Properties) == 0 {
+		t.Errorf("nested slice items have no properties, probably just generic object")
+	}
+}

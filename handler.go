@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 )
 
 type typesPair struct {
@@ -18,6 +19,8 @@ type typesPair struct {
 }
 
 type HandlerFunc[Req any, Res any] func(ctx *Context, req Req) (Res, error)
+
+type MiddlewareFunc[Req any] func(ctx *Context, req Req) error
 
 var handlerTypeRegistry sync.Map
 
@@ -44,7 +47,7 @@ func Handle[Req any, Res any](fn HandlerFunc[Req, Res]) gin.HandlerFunc {
 		var req Req
 
 		// Use gin's native binding based on content type
-		if ctx.Request.Method != http.MethodGet && ctx.Request.Method != http.MethodHead {
+		if ctx.Request.Method != http.MethodGet && ctx.Request.Method != http.MethodHead && ctx.Request.ContentLength != 0 {
 			contentType := ctx.ContentType()
 
 			switch contentType {
@@ -59,8 +62,8 @@ func Handle[Req any, Res any](fn HandlerFunc[Req, Res]) gin.HandlerFunc {
 					return
 				}
 			default:
-				// JSON binding as default
-				if err := ctx.ShouldBindJSON(&req); err != nil {
+				// JSON binding as default (use ShouldBindBodyWith to allow multiple reads)
+				if err := ctx.ShouldBindBodyWith(&req, binding.JSON); err != nil {
 					ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("JSON binding failed: %v", err)})
 					return
 				}
@@ -79,10 +82,18 @@ func Handle[Req any, Res any](fn HandlerFunc[Req, Res]) gin.HandlerFunc {
 			return
 		}
 
-		// Validate the request
-		if err := validateStruct(ctx, &req); err != nil {
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Validation failed: %v", err)})
+		// Bind header parameters using gin's native binding
+		if err := ctx.ShouldBindHeader(&req); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Header binding failed: %v", err)})
 			return
+		}
+
+		// Validate the request if it's a struct
+		if reqType != nil && (reqType.Kind() == reflect.Struct || (reqType.Kind() == reflect.Ptr && reqType.Elem().Kind() == reflect.Struct)) {
+			if err := validateStruct(ctx, &req); err != nil {
+				ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Validation failed: %v", err)})
+				return
+			}
 		}
 
 		// Call the handler function
@@ -110,9 +121,99 @@ func Handle[Req any, Res any](fn HandlerFunc[Req, Res]) gin.HandlerFunc {
 	return handler
 }
 
+// Middleware creates a type-safe middleware using gin's native functionality with automatic content-type detection
+func Middleware[Req any](fn MiddlewareFunc[Req]) gin.HandlerFunc {
+	var reqZero Req
+	reqType := reflect.TypeOf(reqZero)
+
+	handler := func(ctx *gin.Context) {
+		var req Req
+
+		// Use gin's native binding based on content type
+		if ctx.Request.Method != http.MethodGet && ctx.Request.Method != http.MethodHead && ctx.Request.ContentLength != 0 {
+			contentType := ctx.ContentType()
+
+			switch contentType {
+			case gin.MIMEPOSTForm:
+				if err := ctx.ShouldBind(&req); err != nil {
+					ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Form binding failed: %v", err)})
+					ctx.Abort()
+					return
+				}
+			case gin.MIMEMultipartPOSTForm:
+				if err := ctx.ShouldBind(&req); err != nil {
+					ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Multipart binding failed: %v", err)})
+					ctx.Abort()
+					return
+				}
+			default:
+				// JSON binding as default (use ShouldBindBodyWith to allow multiple reads)
+				if err := ctx.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+					ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("JSON binding failed: %v", err)})
+					ctx.Abort()
+					return
+				}
+			}
+		}
+
+		// Bind query parameters using gin's native binding
+		if err := ctx.ShouldBindQuery(&req); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Query binding failed: %v", err)})
+			ctx.Abort()
+			return
+		}
+
+		// Bind path parameters using gin's native binding
+		if err := ctx.ShouldBindUri(&req); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Path binding failed: %v", err)})
+			ctx.Abort()
+			return
+		}
+
+		// Bind header parameters using gin's native binding
+		if err := ctx.ShouldBindHeader(&req); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Header binding failed: %v", err)})
+			ctx.Abort()
+			return
+		}
+
+		// Validate the request if it's a struct
+		if reqType != nil && (reqType.Kind() == reflect.Struct || (reqType.Kind() == reflect.Ptr && reqType.Elem().Kind() == reflect.Struct)) {
+			if err := validateStruct(ctx, &req); err != nil {
+				ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Validation failed: %v", err)})
+				ctx.Abort()
+				return
+			}
+		}
+
+		// Call the middleware function
+		err := fn(&Context{Context: ctx}, req)
+		if err != nil {
+			if httpErr, ok := err.(HTTPError); ok {
+				ctx.JSON(httpErr.Status, httpErr)
+			} else {
+				ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Internal server error: %v", err)})
+			}
+			ctx.Abort()
+			return
+		}
+
+		ctx.Next()
+	}
+
+	// Determine content types based on struct tags
+	contentTypes := detectContentTypes(reqType)
+
+	// Register middleware types for each detected content type (use nil for response type)
+	for _, ct := range contentTypes {
+		registerHandlerTypes(handler, reqType, nil, ct)
+	}
+	return handler
+}
+
 // detectContentTypes analyzes struct tags to determine appropriate content types
 func detectContentTypes(reqType reflect.Type) []string {
-	if reqType == nil {
+	if reqType == nil || reqType.Kind() != reflect.Struct {
 		return []string{"application/json"}
 	}
 
