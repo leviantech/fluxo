@@ -20,7 +20,7 @@ type App struct {
 type handlerInfo struct {
 	method      string
 	path        string
-	reqType     reflect.Type
+	reqTypes    []reflect.Type // Support multiple request types (e.g., from middleware)
 	resType     reflect.Type
 	contentType string
 }
@@ -34,48 +34,59 @@ func New() *App {
 	}
 }
 
-func (a *App) GET(path string, handler gin.HandlerFunc) {
+func (a *App) GET(path string, handlers ...gin.HandlerFunc) {
 	// Check if this is a fluxo.Handle wrapper and extract type info if swagger is enabled
-	if a.enableSwagger {
-		a.captureHandlerInfo("GET", path, handler)
+	if a.enableSwagger && len(handlers) > 0 {
+		// We look at all handlers to find the one that was wrapped with fluxo.Handle
+		for _, h := range handlers {
+			a.captureHandlerInfo("GET", path, h)
+		}
 	}
-	a.router.GET(path, handler)
+	a.router.GET(path, handlers...)
 }
 
 // POST registers a POST handler
-func (a *App) POST(path string, handler gin.HandlerFunc) {
+func (a *App) POST(path string, handlers ...gin.HandlerFunc) {
 	// Check if this is a fluxo.Handle wrapper and extract type info if swagger is enabled
-	if a.enableSwagger {
-		a.captureHandlerInfo("POST", path, handler)
+	if a.enableSwagger && len(handlers) > 0 {
+		for _, h := range handlers {
+			a.captureHandlerInfo("POST", path, h)
+		}
 	}
-	a.router.POST(path, handler)
+	a.router.POST(path, handlers...)
 }
 
 // PUT registers a PUT handler
-func (a *App) PUT(path string, handler gin.HandlerFunc) {
+func (a *App) PUT(path string, handlers ...gin.HandlerFunc) {
 	// Check if this is a fluxo.Handle wrapper and extract type info if swagger is enabled
-	if a.enableSwagger {
-		a.captureHandlerInfo("PUT", path, handler)
+	if a.enableSwagger && len(handlers) > 0 {
+		for _, h := range handlers {
+			a.captureHandlerInfo("PUT", path, h)
+		}
 	}
-	a.router.PUT(path, handler)
+	a.router.PUT(path, handlers...)
 }
 
 // DELETE registers a DELETE handler
-func (a *App) DELETE(path string, handler gin.HandlerFunc) {
+func (a *App) DELETE(path string, handlers ...gin.HandlerFunc) {
 	// Check if this is a fluxo.Handle wrapper and extract type info if swagger is enabled
-	if a.enableSwagger {
-		a.captureHandlerInfo("DELETE", path, handler)
+	if a.enableSwagger && len(handlers) > 0 {
+		for _, h := range handlers {
+			a.captureHandlerInfo("DELETE", path, h)
+		}
 	}
-	a.router.DELETE(path, handler)
+	a.router.DELETE(path, handlers...)
 }
 
 // PATCH registers a PATCH handler
-func (a *App) PATCH(path string, handler gin.HandlerFunc) {
+func (a *App) PATCH(path string, handlers ...gin.HandlerFunc) {
 	// Check if this is a fluxo.Handle wrapper and extract type info if swagger is enabled
-	if a.enableSwagger {
-		a.captureHandlerInfo("PATCH", path, handler)
+	if a.enableSwagger && len(handlers) > 0 {
+		for _, h := range handlers {
+			a.captureHandlerInfo("PATCH", path, h)
+		}
 	}
-	a.router.PATCH(path, handler)
+	a.router.PATCH(path, handlers...)
 }
 
 // Use adds middleware to the gin router
@@ -103,16 +114,30 @@ func (a *App) captureHandlerInfo(method, path string, handler gin.HandlerFunc) {
 		return
 	}
 	handlerKey := fmt.Sprintf("%s:%s", method, path)
-	a.handlers[handlerKey] = handlerInfo{
-		method:      method,
-		path:        path,
-		reqType:     reqType,
-		resType:     resType,
-		contentType: ct,
+
+	info := a.handlers[handlerKey]
+	info.method = method
+	info.path = path
+
+	// Add request type if not already present
+	found := false
+	for _, rt := range info.reqTypes {
+		if rt == reqType {
+			found = true
+			break
+		}
 	}
-	if a.swagger != nil {
-		a.swagger.AddEndpoint(method, path, reqType, resType, ct)
+	if !found {
+		info.reqTypes = append(info.reqTypes, reqType)
 	}
+
+	if resType != nil {
+		info.resType = resType
+	}
+	if ct != "" {
+		info.contentType = ct
+	}
+	a.handlers[handlerKey] = info
 }
 
 // WithSwagger enables swagger documentation generation and serves it at /docs

@@ -126,7 +126,7 @@ func NewSwaggerGenerator(title, version string, opts ...SwaggerOption) *SwaggerG
 func (sg *SwaggerGenerator) Generate(handlers map[string]handlerInfo) map[string]interface{} {
 	// Process all handlers to build the spec
 	for _, info := range handlers {
-		sg.AddEndpoint(info.method, info.path, info.reqType, info.resType, info.contentType)
+		sg.AddEndpoint(info.method, info.path, info.reqTypes, info.resType, info.contentType)
 	}
 
 	// Convert to map for JSON serialization
@@ -138,7 +138,7 @@ func (sg *SwaggerGenerator) Generate(handlers map[string]handlerInfo) map[string
 
 // detectSwaggerContentTypes analyzes struct tags to determine appropriate content types for swagger
 func (sg *SwaggerGenerator) detectSwaggerContentTypes(requestType reflect.Type) []string {
-	if requestType == nil {
+	if requestType == nil || requestType.Kind() != reflect.Struct {
 		return []string{"application/json"}
 	}
 
@@ -190,7 +190,7 @@ func (sg *SwaggerGenerator) detectSwaggerContentTypes(requestType reflect.Type) 
 
 // generateParameters creates OpenAPI parameters for both query and path parameters
 func (sg *SwaggerGenerator) generateParameters(requestType reflect.Type, path string) []Parameter {
-	if requestType == nil {
+	if requestType == nil || requestType.Kind() != reflect.Struct {
 		return nil
 	}
 
@@ -214,6 +214,31 @@ func (sg *SwaggerGenerator) generateParameters(requestType reflect.Type, path st
 				In:       "path",
 				Required: true, // Path parameters are always required
 				Schema:   sg.generateSchema(field.Type),
+			}
+
+			parameters = append(parameters, param)
+			continue
+		}
+
+		// Check for header parameters
+		if headerTag := field.Tag.Get("header"); headerTag != "" && headerTag != "-" {
+			paramName := strings.Split(headerTag, ",")[0]
+			if paramName == "" {
+				continue
+			}
+
+			param := Parameter{
+				Name:     paramName,
+				In:       "header",
+				Required: false,
+				Schema:   sg.generateSchema(field.Type),
+			}
+
+			// Check if field is required based on validation tags
+			if validateTag := field.Tag.Get("validate"); validateTag != "" {
+				if strings.Contains(validateTag, "required") {
+					param.Required = true
+				}
 			}
 
 			parameters = append(parameters, param)
@@ -276,7 +301,7 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-func (sg *SwaggerGenerator) AddEndpoint(method, path string, requestType, responseType reflect.Type, contentType string) {
+func (sg *SwaggerGenerator) AddEndpoint(method, path string, requestTypes []reflect.Type, responseType reflect.Type, contentType string) {
 
 	operation := &Operation{
 		Summary: fmt.Sprintf("%s %s", method, path),
@@ -306,24 +331,42 @@ func (sg *SwaggerGenerator) AddEndpoint(method, path string, requestType, respon
 		},
 	}
 
-	if requestType != nil {
-		if method == "GET" || method == "HEAD" {
-			// For GET/HEAD requests, add query parameters and path parameters
-			operation.Parameters = sg.generateParameters(requestType, path)
-		} else {
-			// For other methods, add request body
-			contentTypes := sg.detectSwaggerContentTypes(requestType)
+	if len(requestTypes) > 0 {
+		// All methods can have parameters (path or query)
+		for _, rt := range requestTypes {
+			operation.Parameters = append(operation.Parameters, sg.generateParameters(rt, path)...)
+		}
 
+		// Non-GET/HEAD methods can have a request body
+		if method != "GET" && method != "HEAD" {
 			operation.RequestBody = &RequestBody{
 				Description: "Request body",
 				Content:     make(map[string]MediaType),
 				Required:    true,
 			}
 
-			// Add each detected content type
-			for _, ct := range contentTypes {
-				operation.RequestBody.Content[ct] = MediaType{
-					Schema: sg.generateSchema(requestType),
+			// Merge content types and schemas from all request types
+			for _, rt := range requestTypes {
+				cts := sg.detectSwaggerContentTypes(rt)
+				schema := sg.generateSchema(rt)
+
+				for _, ct := range cts {
+					existing, exists := operation.RequestBody.Content[ct]
+					if !exists {
+						operation.RequestBody.Content[ct] = MediaType{Schema: schema}
+					} else {
+						// Merge schemas if they are objects
+						if existing.Schema.Type == "object" && schema.Type == "object" {
+							if existing.Schema.Properties == nil {
+								existing.Schema.Properties = make(map[string]Schema)
+							}
+							for k, v := range schema.Properties {
+								existing.Schema.Properties[k] = v
+							}
+							existing.Schema.Required = append(existing.Schema.Required, schema.Required...)
+							operation.RequestBody.Content[ct] = existing
+						}
+					}
 				}
 			}
 		}
@@ -378,7 +421,8 @@ func (sg *SwaggerGenerator) generateSchema(t reflect.Type) Schema {
 		if isFileHeader(it) {
 			return Schema{Type: "array", Items: &Schema{Type: "string", Format: "binary"}}
 		}
-		return Schema{Type: "array", Items: &Schema{Type: "object"}}
+		itemSchema := sg.generateSchema(it)
+		return Schema{Type: "array", Items: &itemSchema}
 	default:
 		return Schema{Type: "object"}
 	}
@@ -395,9 +439,12 @@ func (sg *SwaggerGenerator) generateStructSchema(t reflect.Type) Schema {
 	}
 
 	// Check if we already have this schema
-	if existing, ok := sg.spec.Components.Schemas[schemaName]; ok {
-		return existing
+	if _, ok := sg.spec.Components.Schemas[schemaName]; ok {
+		return Schema{Description: "Reference to " + schemaName} // Should ideally use $ref
 	}
+
+	// Set a placeholder to prevent infinite recursion
+	sg.spec.Components.Schemas[schemaName] = Schema{Type: "object", Description: "Circular reference"}
 
 	schema := Schema{
 		Type:       "object",
