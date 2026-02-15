@@ -2,6 +2,7 @@ package fluxo
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -76,4 +77,37 @@ func TestValidationMessages(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error")
 	}
+}
+
+func TestValidation_EdgeCases(t *testing.T) {
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Request = httptest.NewRequest("GET", "/", nil)
+
+	t.Run("Default_Message", func(t *testing.T) {
+		type unknownTag struct {
+			Name string `validate:"url"`
+		}
+		err := validateStruct(ctx, &unknownTag{Name: "not-a-url"})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "Name failed validation for url") {
+			t.Errorf("expected default message, got %v", err)
+		}
+	})
+
+	t.Run("Param_Translation", func(t *testing.T) {
+		RegisterTranslation("en", "min", "Field %s must be at least %s")
+		type minTag struct {
+			Age int `validate:"min=18"`
+		}
+		err := validateStruct(ctx, &minTag{Age: 10})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "Field Age must be at least 18") {
+			t.Errorf("expected param translation, got %v", err)
+		}
+	})
 }

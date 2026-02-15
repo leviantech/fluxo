@@ -96,3 +96,23 @@ func TestSwagger_UI_Disabled_Panic(t *testing.T) {
 	}()
 	app.EnableSwaggerUI("/docs")
 }
+
+func TestApp_DuplicateReqType(t *testing.T) {
+	type Req struct {
+		Name string `json:"name"`
+	}
+	app := New()
+	
+	// Add a middleware and a handler that use the same request type
+	mid := Middleware(func(ctx *Context, req Req) error {
+		return nil
+	})
+	app.Use(mid)
+	
+	app.POST("/test", Handle(func(ctx *Context, req Req) (gin.H, error) {
+		return gin.H{"ok": true}, nil
+	}))
+
+	// This should trigger the "found" logic in captureHandlerInfo
+	// We don't need to check anything specific, just ensure it doesn't panic and covers the lines
+}

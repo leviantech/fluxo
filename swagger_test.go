@@ -205,4 +205,83 @@ func TestSwagger_Schema_EdgeCases(t *testing.T) {
 			t.Error("expected /test/:id in spec")
 		}
 	})
+
+	t.Run("Non_Struct_Types", func(t *testing.T) {
+		sg := NewSwaggerGenerator("Test", "1.0.0")
+		cts := sg.detectSwaggerContentTypes(reflect.TypeOf(""))
+		if len(cts) != 1 || cts[0] != "application/json" {
+			t.Errorf("expected [application/json] for string, got %v", cts)
+		}
+		
+		params := sg.generateParameters(reflect.TypeOf(1), "/test")
+		if len(params) != 0 {
+			t.Errorf("expected 0 params for int, got %d", len(params))
+		}
+	})
+
+	t.Run("Empty_Tags", func(t *testing.T) {
+		sg := NewSwaggerGenerator("Test", "1.0.0")
+		type EmptyTags struct {
+			ID    string `uri:",required"`
+			Token string `header:",required"`
+			Name  string `form:",required"`
+			Query string `form:""`
+		}
+		params := sg.generateParameters(reflect.TypeOf(EmptyTags{}), "/test/:id")
+		// None of these should be added because the names are empty
+		if len(params) != 0 {
+			t.Errorf("expected 0 params, got %d", len(params))
+		}
+	})
+
+	t.Run("File_Upload_Schema", func(t *testing.T) {
+		sg := NewSwaggerGenerator("Test", "1.0.0")
+		type FileReq struct {
+			Single *mimeMultipart.FileHeader   `form:"single"`
+			Multi  []*mimeMultipart.FileHeader `form:"multi"`
+		}
+		schema := sg.generateSchema(reflect.TypeOf(FileReq{}))
+		if schema.Properties["single"].Type != "string" || schema.Properties["single"].Format != "binary" {
+			t.Errorf("expected binary string for single, got %s:%s", schema.Properties["single"].Type, schema.Properties["single"].Format)
+		}
+		if schema.Properties["multi"].Type != "array" || schema.Properties["multi"].Items.Type != "string" || schema.Properties["multi"].Items.Format != "binary" {
+			t.Errorf("expected array of binary strings for multi")
+		}
+	})
+
+	t.Run("Validation_Tags_Format", func(t *testing.T) {
+		sg := NewSwaggerGenerator("Test", "1.0.0")
+		type ValidatedReq struct {
+			Email string `json:"email" validate:"required,email"`
+			Age   int    `json:"age" validate:"required"`
+		}
+		schema := sg.generateSchema(reflect.TypeOf(ValidatedReq{}))
+		if schema.Properties["email"].Format != "email" {
+			t.Errorf("expected email format, got %s", schema.Properties["email"].Format)
+		}
+		foundEmail := false
+		foundAge := false
+		for _, req := range schema.Required {
+			if req == "email" { foundEmail = true }
+			if req == "age" { foundAge = true }
+		}
+		if !foundEmail || !foundAge {
+			t.Errorf("expected email and age in required list, got %v", schema.Required)
+		}
+	})
+
+	t.Run("Duplicate_Param_Source", func(t *testing.T) {
+		sg := NewSwaggerGenerator("Test", "1.0.0")
+		type DupReq struct {
+			ID string `uri:"id" form:"id"`
+		}
+		params := sg.generateParameters(reflect.TypeOf(DupReq{}), "/test/:id")
+		// Should only be in path, not in form
+		if len(params) != 1 {
+			t.Errorf("expected 1 param, got %d", len(params))
+		}
+		if params[0].In != "path" {
+			t.Errorf("expected path param, got %s", params[0].In)
+		}
+	})
 }

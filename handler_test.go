@@ -197,6 +197,111 @@ func TestHandle_MoreErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("Header_Error", func(t *testing.T) {
+		app := New()
+		type Req struct {
+			Age int `header:"X-Age" binding:"required"`
+		}
+		app.GET("/header", Handle(func(ctx *Context, req Req) (gin.H, error) {
+			return gin.H{"ok": true}, nil
+		}))
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/header", nil)
+		r.Header.Set("X-Age", "abc")
+		app.ServeHTTP(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Generic_Error", func(t *testing.T) {
+		app := New()
+		app.GET("/error", Handle(func(ctx *Context, req struct{}) (gin.H, error) {
+			return nil, someError{}
+		}))
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/error", nil)
+		app.ServeHTTP(w, r)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+	})
+
+	t.Run("Mixed_Form_JSON", func(t *testing.T) {
+		app := New()
+		type MixedReq struct {
+			Name string `json:"name" form:"name"`
+		}
+		app.POST("/mixed", Handle(func(ctx *Context, req MixedReq) (gin.H, error) {
+			return gin.H{"name": req.Name}, nil
+		}))
+
+		// Test JSON
+		w1 := httptest.NewRecorder()
+		r1 := httptest.NewRequest("POST", "/mixed", strings.NewReader(`{"name":"foo"}`))
+		r1.Header.Set("Content-Type", "application/json")
+		app.ServeHTTP(w1, r1)
+		if w1.Code != http.StatusOK {
+			t.Errorf("JSON: expected 200, got %d", w1.Code)
+		}
+
+		// Test Form
+		w2 := httptest.NewRecorder()
+		r2 := httptest.NewRequest("POST", "/mixed", strings.NewReader("name=bar"))
+		r2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		app.ServeHTTP(w2, r2)
+		if w2.Code != http.StatusOK {
+			t.Errorf("Form: expected 200, got %d", w2.Code)
+		}
+	})
+
+	t.Run("Middleware_Binding_Errors", func(t *testing.T) {
+		app := New()
+		type MidReq struct {
+			ID int `uri:"id" binding:"required"`
+		}
+		app.Use(Middleware(func(ctx *Context, req MidReq) error {
+			return nil
+		}))
+		app.GET("/test/:id", Handle(func(ctx *Context, req struct{}) (gin.H, error) {
+			return gin.H{"ok": true}, nil
+		}))
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/test/abc", nil)
+		app.ServeHTTP(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Middleware_Header_Error", func(t *testing.T) {
+		app := New()
+		type MidReq struct {
+			Age int `header:"X-Age" binding:"required"`
+		}
+		app.Use(Middleware(func(ctx *Context, req MidReq) error {
+			return nil
+		}))
+		app.GET("/test", Handle(func(ctx *Context, req struct{}) (gin.H, error) {
+			return gin.H{"ok": true}, nil
+		}))
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/test", nil)
+		r.Header.Set("X-Age", "abc")
+		app.ServeHTTP(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
 	t.Run("Validation_Pointer_Struct", func(t *testing.T) {
 		app := New()
 		type Req struct {
@@ -217,3 +322,7 @@ func TestHandle_MoreErrors(t *testing.T) {
 		}
 	})
 }
+
+type someError struct{}
+
+func (e someError) Error() string { return "some error" }
